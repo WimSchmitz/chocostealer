@@ -9,6 +9,7 @@ from flask import (
     render_template_string,
     request,
     redirect,
+    send_from_directory,
     url_for,
     flash,
     session,
@@ -133,6 +134,9 @@ def logout():
     flash("You have been logged out", "success")
     return redirect(url_for("login"))
 
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory('static', filename)
 
 @app.route("/")
 @require_password
