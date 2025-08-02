@@ -43,9 +43,9 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 days = {
-    "day1": "Day 1",
-    "day2": "Day 2", 
-    "day3": "Day 3",
+    "day1": "Friday",
+    "day2": "Saturday", 
+    "day3": "Sunday",
     "combi": "Combi"
 }
 
@@ -89,7 +89,9 @@ def init_db():
             ticket_id TEXT NOT NULL,
             day TEXT NOT NULL,
             camping TEXT NOT NULL,
-            price INTEGER NOT NULL
+            price INTEGER NOT NULL,
+            url TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     
@@ -175,14 +177,17 @@ def reset_tickets():
     conn.commit()
     conn.close()
 
-def add_ticket(ticket_id, day, camping, price):
+def add_ticket(ticket_id, day, camping, price, url):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
     
     cursor.execute('''
-        INSERT INTO tickets (ticket_id, day, camping, price) 
-        VALUES (?, ?, ?, ?)
-    ''', (ticket_id, day, camping, price))
+        INSERT INTO tickets (ticket_id, day, camping, price, url) 
+        VALUES (?, ?, ?, ?, ?)
+    ''', (ticket_id, day, camping, price, url))
+
+    conn.commit()
+    conn.close()
 
 def get_current_tickets_overview():
     """Get a list of currently available tickets, grouped by day and camping, showing count and lowest price."""
@@ -238,6 +243,7 @@ def monitor_tickets():
     
     while True:
         try:
+            reset_tickets()  # Clear previous tickets
             logger.info(f"Checking tickets at {datetime.now()}")
             
             for day in days.keys():
@@ -274,10 +280,8 @@ def monitor_tickets():
                             link_url = link_element.get("href")
                             ticket_id = link_url.split("/")[-3]
                             
+                            add_ticket(ticket_id, day, camping, price, url)
                             notify_contacts(ticket_id, url, day, camping, price)
-                    
-                    # Update ticket availability in database
-                    update_ticket_availability(day, camping, ticket_count, lowest_price, url)
             
             time.sleep(30)  # Check every 30 seconds
             
@@ -288,11 +292,11 @@ def monitor_tickets():
 # Flask routes
 @app.route('/')
 def index():
-    current_tickets = get_current_tickets()
+    current_tickets_overview = get_current_tickets_overview()
     return render_template_string(INDEX_TEMPLATE, 
                                 days=days, 
                                 campings=campings,
-                                current_tickets=current_tickets)
+                                current_tickets_overview=current_tickets_overview)
 
 @app.route('/subscribe', methods=['POST'])
 def subscribe():
@@ -396,7 +400,7 @@ INDEX_TEMPLATE = '''
     
     <div class="section">
         <h2>Currently Available Tickets</h2>
-        {% if current_tickets %}
+        {% if current_tickets_overview %}
         <table>
             <thead>
                 <tr>
@@ -405,18 +409,16 @@ INDEX_TEMPLATE = '''
                     <th>Available</th>
                     <th>Lowest Price</th>
                     <th>Link</th>
-                    <th>Last Updated</th>
                 </tr>
             </thead>
             <tbody>
-                {% for day, camping, count, lowest_price, url, last_updated in current_tickets %}
+                {% for day, camping, count, lowest_price, url in current_tickets_overview %}
                 <tr>
                     <td>{{ days[day] }}</td>
                     <td>{{ campings[camping] }}</td>
                     <td class="available">{{ count }} tickets</td>
                     <td>{{ lowest_price or 'N/A' }}</td>
                     <td><a href="{{ url }}" target="_blank" class="ticket-link">View Tickets</a></td>
-                    <td>{{ last_updated }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
