@@ -11,8 +11,12 @@ bs4 = "^0.0.2"
 requests = "^2.32.3"
 dotenv = "^0.9.9"
 flask = "^3.1.1"
-streamlit = "^1.47.1"
 
+[tool.poetry.group.ui]
+optional = true
+
+[tool.poetry.group.ui.dependencies]
+streamlit = "^1.47.1"
 
 [build-system]
 requires = ["poetry-core"]
