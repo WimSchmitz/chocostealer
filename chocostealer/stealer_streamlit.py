@@ -157,9 +157,6 @@ def main():
             st.cache_data.clear()
             st.rerun()
     
-    with col2:
-        auto_refresh = st.checkbox("Auto-refresh (30s)", value=False)
-    
     with col3:
         if st.button("Select All"):
             for day_key in days.keys():
@@ -167,11 +164,6 @@ def main():
             for camping_key in campings.keys():
                 st.session_state[f"camping_{camping_key}"] = True
             st.rerun()
-    
-    # Auto refresh functionality
-    if auto_refresh:
-        time.sleep(30)
-        st.rerun()
     
     st.markdown("---")
     
