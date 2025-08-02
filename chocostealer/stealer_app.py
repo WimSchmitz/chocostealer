@@ -72,8 +72,6 @@ def init_db():
         )
     ''')
 
-
-
     # Create notifications table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS notifications (
@@ -81,6 +79,17 @@ def init_db():
             ticket_id TEXT NOT NULL,
             subscriber_id INTEGER NOT NULL,
             sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create tickets table for current availability
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_id TEXT NOT NULL,
+            day TEXT NOT NULL,
+            camping TEXT NOT NULL,
+            price INTEGER NOT NULL
         )
     ''')
     
@@ -103,8 +112,6 @@ def get_subscribers(day=None, camping=None):
     conn.close()
     return results
 
-
-
 def get_subscribers_to_notify(day, camping, ticket_id):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -119,8 +126,6 @@ def get_subscribers_to_notify(day, camping, ticket_id):
     results = cursor.fetchall()
     conn.close()
     return results
-
-
 
 def add_subscriber(email, day, camping):
     conn = sqlite3.connect(DATABASE_NAME)
@@ -160,6 +165,35 @@ def get_notified_tickets():
     cursor = conn.cursor()
     cursor.execute('SELECT ticket_id FROM notifications')
     results = {row[0] for row in cursor.fetchall()}
+    conn.close()
+    return results
+
+def reset_tickets():
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM tickets')
+    conn.commit()
+    conn.close()
+
+def add_ticket(ticket_id, day, camping, price):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT INTO tickets (ticket_id, day, camping, price) 
+        VALUES (?, ?, ?, ?)
+    ''', (ticket_id, day, camping, price))
+
+def get_current_tickets_overview():
+    """Get a list of currently available tickets, grouped by day and camping, showing count and lowest price."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT day, camping, COUNT(*) as count, MIN(price) as lowest_price, MAX(url) as url
+        FROM tickets
+        GROUP BY day, camping
+    ''')
+    results = cursor.fetchall()
     conn.close()
     return results
 
@@ -215,13 +249,35 @@ def monitor_tickets():
                     
                     soup = BeautifulSoup(response.text, "html.parser")
                     link_elements = soup.find_all('a', href=re.compile(r"^https://tickets\.pukkelpop\.be/nl/meetup/buy/"))
-                    logger.info(f"Found {len(link_elements)} links for {day} + {camping}")
-                    for link_element in link_elements:
-                        price = link_element.get_text(strip=True)
-                        link_url = link_element.get("href")
-                        ticket_id = link_url.split("/")[-3]
+                    
+                    ticket_count = len(link_elements)
+                    lowest_price = None
+                    
+                    logger.info(f"Found {ticket_count} links for {day} + {camping}")
+                    
+                    if ticket_count > 0:
+                        # Extract all prices and find the lowest
+                        prices = []
+                        for link_element in link_elements:
+                            price_text = link_element.get_text(strip=True)
+                            # Try to extract numeric value from price for comparison
+                            price_match = re.search(r'€?\s*(\d+(?:\.\d{2})?)', price_text)
+                            if price_match:
+                                prices.append((float(price_match.group(1)), price_text))
                         
-                        notify_contacts(ticket_id, url, day, camping, price)
+                        if prices:
+                            lowest_price = min(prices, key=lambda x: x[0])[1]
+                        
+                        # Send notifications for each ticket
+                        for link_element in link_elements:
+                            price = link_element.get_text(strip=True)
+                            link_url = link_element.get("href")
+                            ticket_id = link_url.split("/")[-3]
+                            
+                            notify_contacts(ticket_id, url, day, camping, price)
+                    
+                    # Update ticket availability in database
+                    update_ticket_availability(day, camping, ticket_count, lowest_price, url)
             
             time.sleep(30)  # Check every 30 seconds
             
@@ -232,7 +288,11 @@ def monitor_tickets():
 # Flask routes
 @app.route('/')
 def index():
-    return render_template_string(INDEX_TEMPLATE, days=days, campings=campings)
+    current_tickets = get_current_tickets()
+    return render_template_string(INDEX_TEMPLATE, 
+                                days=days, 
+                                campings=campings,
+                                current_tickets=current_tickets)
 
 @app.route('/subscribe', methods=['POST'])
 def subscribe():
@@ -303,7 +363,7 @@ INDEX_TEMPLATE = '''
 <head>
     <title>Pukkelpop Ticket Monitor</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
         .form-group { margin: 15px 0; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         input, select { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
@@ -314,6 +374,13 @@ INDEX_TEMPLATE = '''
         .section { margin: 30px 0; padding: 20px; border: 1px solid #eee; border-radius: 8px; }
         h1 { color: #333; text-align: center; }
         h2 { color: #666; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
+        .available { color: #28a745; font-weight: bold; }
+        .no-tickets { color: #6c757d; font-style: italic; }
+        .ticket-link { color: #007bff; text-decoration: none; }
+        .ticket-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -326,6 +393,38 @@ INDEX_TEMPLATE = '''
             {% endfor %}
         {% endif %}
     {% endwith %}
+    
+    <div class="section">
+        <h2>Currently Available Tickets</h2>
+        {% if current_tickets %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    <th>Camping</th>
+                    <th>Available</th>
+                    <th>Lowest Price</th>
+                    <th>Link</th>
+                    <th>Last Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day, camping, count, lowest_price, url, last_updated in current_tickets %}
+                <tr>
+                    <td>{{ days[day] }}</td>
+                    <td>{{ campings[camping] }}</td>
+                    <td class="available">{{ count }} tickets</td>
+                    <td>{{ lowest_price or 'N/A' }}</td>
+                    <td><a href="{{ url }}" target="_blank" class="ticket-link">View Tickets</a></td>
+                    <td>{{ last_updated }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-tickets">No tickets currently available. Subscribe below to get notified when they become available!</p>
+        {% endif %}
+    </div>
     
     <div class="section">
         <h2>Subscribe for Ticket Alerts</h2>
@@ -420,14 +519,14 @@ STATS_TEMPLATE = '''
             <tr>
                 <th>Ticket ID</th>
                 <th>Subscriber ID</th>
-                <th>Sent Ad</th>
+                <th>Sent At</th>
             </tr>
         </thead>
         <tbody>
             {% for ticket_id, subscriber_id, sent_at in notifications %}
             <tr>
                 <td>{{ ticket_id }}</td>
-                <td>{{ subsriber_id }}</td>
+                <td>{{ subscriber_id }}</td>
                 <td>{{ sent_at }}</td>
             </tr>
             {% endfor %}
