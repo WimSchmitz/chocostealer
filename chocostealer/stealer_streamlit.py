@@ -132,8 +132,26 @@ def main():
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     st.info(f"Last checked: {current_time}")
     
-    # Refresh button
-    col1, col2, col3 = st.columns([1, 1, 4])
+    # User selection filters (flat line)
+    st.markdown("### 🎯 Select what you're interested in:")
+
+    selected_days = {day_key: True for day_key in days}
+    selected_campings = {camping_key: True for camping_key in campings}
+
+    # Create checkboxes for days
+    cols = st.columns(max(len(days), len(campings)) +1)
+    cols[0].markdown("**Days:**")
+    for i, (day_key, day_name) in enumerate(days.items()):
+        selected_days[day_key] = cols[i+1].checkbox(day_name, value=(day_key != "day3"), key=f"day_{day_key}")
+    
+    # Create checkboxes for campings
+    cols = st.columns(max(len(days), len(campings)) +1)
+    cols[0].markdown("**Campings:**")
+    for i, (camping_key, camping_name) in enumerate(campings.items()):
+        selected_campings[camping_key] = cols[i+1].checkbox(camping_name, value=True, key=f"camping_{camping_key}")
+    
+    # Control buttons
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
     with col1:
         if st.button("🔄 Refresh Now", type="primary"):
             st.cache_data.clear()
@@ -142,6 +160,14 @@ def main():
     with col2:
         auto_refresh = st.checkbox("Auto-refresh (30s)", value=False)
     
+    with col3:
+        if st.button("Select All"):
+            for day_key in days.keys():
+                st.session_state[f"day_{day_key}"] = True
+            for camping_key in campings.keys():
+                st.session_state[f"camping_{camping_key}"] = True
+            st.rerun()
+    
     # Auto refresh functionality
     if auto_refresh:
         time.sleep(30)
@@ -149,9 +175,41 @@ def main():
     
     st.markdown("---")
     
-    # Fetch ticket data
+    # Fetch ticket data only for selected combinations
+    selected_combinations = []
+    for day_key, day_selected in selected_days.items():
+        for camping_key, camping_selected in selected_campings.items():
+            if day_selected and camping_selected:
+                selected_combinations.append((day_key, camping_key))
+    
+    if not selected_combinations:
+        st.warning("⚠️ Please select at least one day and one camping option to monitor.")
+        return
+    
     with st.spinner("Checking ticket availability..."):
-        tickets_data = fetch_all_tickets()
+        tickets_data = []
+        
+        if selected_combinations:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            total_combinations = len(selected_combinations)
+            current = 0
+            
+            for day_key, camping_key in selected_combinations:
+                current += 1
+                progress = current / total_combinations
+                progress_bar.progress(progress)
+                status_text.text(f'Checking {days[day_key]} - {campings[camping_key]}...')
+                
+                ticket_info = get_tickets_for_combination(day_key, camping_key)
+                tickets_data.append(ticket_info)
+                
+                # Small delay to be respectful to the server
+                time.sleep(0.5)
+            
+            progress_bar.empty()
+            status_text.empty()
     
     # Create DataFrame for better display
     df = pd.DataFrame(tickets_data)
@@ -202,20 +260,11 @@ def main():
     # Show summary table
     st.markdown("## 📊 Complete Overview")
     
-    # Prepare display DataFrame
-    display_df = df[['day', 'camping', 'count', 'lowest_price', 'status']].copy()
-    display_df.columns = ['Day', 'Camping', 'Available', 'Lowest Price', 'Status']
+    # Prepare display DataFrame - remove status column
+    display_df = df[['day', 'camping', 'count', 'lowest_price']].copy()
+    display_df.columns = ['Day', 'Camping', 'Available', 'Lowest Price']
     
-    # Color code the dataframe
-    def highlight_available(val):
-        if isinstance(val, int) and val > 0:
-            return 'background-color: #d4edda; color: #155724'  # Green background
-        elif isinstance(val, int) and val == 0:
-            return 'background-color: #f8d7da; color: #721c24'  # Red background
-        return ''
-    
-    styled_df = display_df.style.applymap(highlight_available, subset=['Available'])
-    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
     
     # Add some helpful information
     st.markdown("---")
