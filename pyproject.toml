@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "chocostealer"
+version = "0.1.0"
+description = ""
+authors = ["Wim Schmitz <wim@schmitz.cc>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+bs4 = "^0.0.2"
+requests = "^2.32.3"
+dotenv = "^0.9.9"
+flask = "^3.1.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
