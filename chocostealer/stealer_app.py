@@ -1,6 +1,6 @@
 """
 Pukkelpop Ticket Monitor with Flask Web Interface
-Run with: python app.py
+Run with: python stealer_app.py
 """
 
 import sqlite3
@@ -13,7 +13,7 @@ import smtplib
 from email.message import EmailMessage
 import os
 from datetime import datetime
-from flask import Flask, render_template_string, request, redirect, url_for, flash
+from flask import Flask, render_template_string, request, redirect, url_for, flash, session
 import dotenv
 import logging
 
@@ -21,7 +21,10 @@ import logging
 dotenv.load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+app.secret_key = os.environ.get('SECRET_KEY')
+
+# Simple password protection
+APP_PASSWORD = os.environ.get('APP_PASSWORD')
 
 # Email configuration
 EMAIL_ADDRESS = os.environ.get('EMAIL_USER')
@@ -43,9 +46,9 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 days = {
-    "day1": "Day 1",
-    "day2": "Day 2", 
-    "day3": "Day 3",
+    "day1": "Friday",
+    "day2": "Saturday", 
+    "day3": "Sunday",
     "combi": "Combi"
 }
 
@@ -72,8 +75,6 @@ def init_db():
         )
     ''')
 
-
-
     # Create notifications table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS notifications (
@@ -81,6 +82,19 @@ def init_db():
             ticket_id TEXT NOT NULL,
             subscriber_id INTEGER NOT NULL,
             sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create tickets table for current availability
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_id TEXT NOT NULL,
+            day TEXT NOT NULL,
+            camping TEXT NOT NULL,
+            price INTEGER NOT NULL,
+            url TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     
@@ -103,8 +117,6 @@ def get_subscribers(day=None, camping=None):
     conn.close()
     return results
 
-
-
 def get_subscribers_to_notify(day, camping, ticket_id):
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -119,8 +131,6 @@ def get_subscribers_to_notify(day, camping, ticket_id):
     results = cursor.fetchall()
     conn.close()
     return results
-
-
 
 def add_subscriber(email, day, camping):
     conn = sqlite3.connect(DATABASE_NAME)
@@ -160,6 +170,38 @@ def get_notified_tickets():
     cursor = conn.cursor()
     cursor.execute('SELECT ticket_id FROM notifications')
     results = {row[0] for row in cursor.fetchall()}
+    conn.close()
+    return results
+
+def reset_tickets():
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM tickets')
+    conn.commit()
+    conn.close()
+
+def add_ticket(ticket_id, day, camping, price, url):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT INTO tickets (ticket_id, day, camping, price, url) 
+        VALUES (?, ?, ?, ?, ?)
+    ''', (ticket_id, day, camping, price, url))
+
+    conn.commit()
+    conn.close()
+
+def get_current_tickets_overview():
+    """Get a list of currently available tickets, grouped by day and camping, showing count and lowest price."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT day, camping, COUNT(*) as count, MIN(price) as lowest_price, MAX(url) as url
+        FROM tickets
+        GROUP BY day, camping
+    ''')
+    results = cursor.fetchall()
     conn.close()
     return results
 
@@ -204,6 +246,7 @@ def monitor_tickets():
     
     while True:
         try:
+            reset_tickets()  # Clear previous tickets
             logger.info(f"Checking tickets at {datetime.now()}")
             
             for day in days.keys():
@@ -215,13 +258,33 @@ def monitor_tickets():
                     
                     soup = BeautifulSoup(response.text, "html.parser")
                     link_elements = soup.find_all('a', href=re.compile(r"^https://tickets\.pukkelpop\.be/nl/meetup/buy/"))
-                    logger.info(f"Found {len(link_elements)} links for {day} + {camping}")
-                    for link_element in link_elements:
-                        price = link_element.get_text(strip=True)
-                        link_url = link_element.get("href")
-                        ticket_id = link_url.split("/")[-3]
+                    
+                    ticket_count = len(link_elements)
+                    lowest_price = None
+                    
+                    logger.info(f"Found {ticket_count} links for {day} + {camping}")
+                    
+                    if ticket_count > 0:
+                        # Extract all prices and find the lowest
+                        prices = []
+                        for link_element in link_elements:
+                            price_text = link_element.get_text(strip=True)
+                            # Try to extract numeric value from price for comparison
+                            price_match = re.search(r'€?\s*(\d+(?:\.\d{2})?)', price_text)
+                            if price_match:
+                                prices.append((float(price_match.group(1)), price_text))
                         
-                        notify_contacts(ticket_id, url, day, camping, price)
+                        if prices:
+                            lowest_price = min(prices, key=lambda x: x[0])[1]
+                        
+                        # Send notifications for each ticket
+                        for link_element in link_elements:
+                            price = link_element.get_text(strip=True)
+                            link_url = link_element.get("href")
+                            ticket_id = link_url.split("/")[-3]
+                            
+                            add_ticket(ticket_id, day, camping, price, url)
+                            notify_contacts(ticket_id, url, day, camping, price)
             
             time.sleep(30)  # Check every 30 seconds
             
@@ -229,12 +292,45 @@ def monitor_tickets():
             print(f"Monitoring error: {e}")
             time.sleep(60)
 
+# Password protection decorator
+def require_password(f):
+    def decorated_function(*args, **kwargs):
+        if not session.get('authenticated'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
+
 # Flask routes
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == APP_PASSWORD:
+            session['authenticated'] = True
+            return redirect(url_for('index'))
+        else:
+            flash('Incorrect password', 'error')
+    
+    return render_template_string(LOGIN_TEMPLATE)
+
+@app.route('/logout')
+def logout():
+    session.pop('authenticated', None)
+    flash('You have been logged out', 'success')
+    return redirect(url_for('login'))
+
 @app.route('/')
+@require_password
 def index():
-    return render_template_string(INDEX_TEMPLATE, days=days, campings=campings)
+    current_tickets_overview = get_current_tickets_overview()
+    return render_template_string(INDEX_TEMPLATE, 
+                                days=days, 
+                                campings=campings,
+                                current_tickets_overview=current_tickets_overview)
 
 @app.route('/subscribe', methods=['POST'])
+@require_password
 def subscribe():
     email = request.form.get('email')
     day = request.form.get('day')
@@ -254,6 +350,7 @@ def subscribe():
     return redirect(url_for('index'))
 
 @app.route('/unsubscribe', methods=['POST'])
+@require_password
 def unsubscribe():
     email = request.form.get('email')
     
@@ -266,6 +363,7 @@ def unsubscribe():
     return redirect(url_for('index'))
 
 @app.route('/stats')
+@require_password
 def stats():
     conn = sqlite3.connect(DATABASE_NAME)
     cursor = conn.cursor()
@@ -303,7 +401,7 @@ INDEX_TEMPLATE = '''
 <head>
     <title>Pukkelpop Ticket Monitor</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
         .form-group { margin: 15px 0; }
         label { display: block; margin-bottom: 5px; font-weight: bold; }
         input, select { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
@@ -314,9 +412,23 @@ INDEX_TEMPLATE = '''
         .section { margin: 30px 0; padding: 20px; border: 1px solid #eee; border-radius: 8px; }
         h1 { color: #333; text-align: center; }
         h2 { color: #666; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
+        .available { color: #28a745; font-weight: bold; }
+        .no-tickets { color: #6c757d; font-style: italic; }
+        .ticket-link { color: #007bff; text-decoration: none; }
+        .ticket-link:hover { text-decoration: underline; }
+        .logout-link { text-align: right; margin-bottom: 20px; }
+        .logout-link a { color: #dc3545; text-decoration: none; }
+        .logout-link a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
+    <div class="logout-link">
+        <a href="/logout">Logout</a>
+    </div>
+    
     <h1>🎪 Pukkelpop Ticket Monitor</h1>
     
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -326,6 +438,36 @@ INDEX_TEMPLATE = '''
             {% endfor %}
         {% endif %}
     {% endwith %}
+    
+    <div class="section">
+        <h2>Currently Available Tickets</h2>
+        {% if current_tickets_overview %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    <th>Camping</th>
+                    <th>Available</th>
+                    <th>Lowest Price</th>
+                    <th>Link</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day, camping, count, lowest_price, url in current_tickets_overview %}
+                <tr>
+                    <td>{{ days[day] }}</td>
+                    <td>{{ campings[camping] }}</td>
+                    <td class="available">{{ count }} tickets</td>
+                    <td>{{ lowest_price or 'N/A' }}</td>
+                    <td><a href="{{ url }}" target="_blank" class="ticket-link">View Tickets</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-tickets">No tickets currently available. Subscribe below to get notified when they become available!</p>
+        {% endif %}
+    </div>
     
     <div class="section">
         <h2>Subscribe for Ticket Alerts</h2>
@@ -391,9 +533,16 @@ STATS_TEMPLATE = '''
         h1 { color: #333; text-align: center; }
         h2 { color: #666; border-bottom: 2px solid #eee; padding-bottom: 10px; }
         .back-link { text-align: center; margin: 20px 0; }
+        .logout-link { text-align: right; margin-bottom: 20px; }
+        .logout-link a { color: #dc3545; text-decoration: none; }
+        .logout-link a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
+    <div class="logout-link">
+        <a href="/logout">Logout</a>
+    </div>
+    
     <h1>📊 Pukkelpop Monitor Statistics</h1>
     
     <h2>Active Subscribers</h2>
@@ -420,14 +569,14 @@ STATS_TEMPLATE = '''
             <tr>
                 <th>Ticket ID</th>
                 <th>Subscriber ID</th>
-                <th>Sent Ad</th>
+                <th>Sent At</th>
             </tr>
         </thead>
         <tbody>
             {% for ticket_id, subscriber_id, sent_at in notifications %}
             <tr>
                 <td>{{ ticket_id }}</td>
-                <td>{{ subsriber_id }}</td>
+                <td>{{ subscriber_id }}</td>
                 <td>{{ sent_at }}</td>
             </tr>
             {% endfor %}
@@ -436,6 +585,100 @@ STATS_TEMPLATE = '''
     
     <div class="back-link">
         <a href="/">← Back to Home</a>
+    </div>
+</body>
+</html>
+'''
+
+LOGIN_TEMPLATE = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - Pukkelpop Ticket Monitor</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 400px; 
+            margin: 100px auto; 
+            padding: 20px; 
+            background-color: #f8f9fa;
+        }
+        .login-container { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #333; 
+            text-align: center; 
+            margin-bottom: 30px;
+        }
+        .form-group { 
+            margin: 20px 0; 
+        }
+        label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: bold; 
+            color: #555;
+        }
+        input[type="password"] { 
+            width: 100%; 
+            padding: 12px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button { 
+            width: 100%;
+            background: #007bff; 
+            color: white; 
+            padding: 12px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover { 
+            background: #0056b3; 
+        }
+        .error { 
+            color: #dc3545; 
+            font-weight: bold; 
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .success { 
+            color: #28a745; 
+            font-weight: bold; 
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>🎪 Pukkelpop Monitor</h1>
+        <h2 style="text-align: center; color: #666; margin-bottom: 30px;">Please Login</h2>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST">
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" name="password" required autofocus>
+            </div>
+            <button type="submit">Login</button>
+        </form>
     </div>
 </body>
 </html>
