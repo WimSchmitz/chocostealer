@@ -23,7 +23,7 @@ A new ticket is available for {day} with {camping}! Price: {price}.
 
 Check it out here: {url} \n\n 
 
-To unsubscribe, visit the website again and scroll down to the bottom.
+To unsubscribe, visit https://www.pkpchecker.eu/ again and scroll down to the bottom.
 """
 
 DATABASE_NAME = 'stealers.db'
