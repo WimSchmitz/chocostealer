@@ -17,14 +17,14 @@ INDEX_TEMPLATE = '''
     <meta property="og:url" content="https://pkpchecker.eu/">
     <meta property="og:title" content="Pukkelpop Ticket Monitor">
     <meta property="og:description" content="Get instant email notifications when Pukkelpop tickets become available for any day or camping option.">
-    <meta property="og:image" content="https://pkpchecker.eu/static/pukkelpop-social.jpg">
+    <meta property="og:image" content="https://pkpchecker.eu/static/pukkelpop-social.png">
     <meta property="og:site_name" content="Pukkelpop Ticket Monitor">
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:title" content="Pukkelpop Ticket Monitor">
     <meta property="twitter:description" content="Get instant email notifications when Pukkelpop tickets become available.">
-    <meta property="twitter:image" content="https://pkpchecker.eu/static/pukkelpop-social.jpg">
+    <meta property="twitter:image" content="https://pkpchecker.eu/static/pukkelpop-social.png">
     
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     
@@ -155,7 +155,7 @@ STATS_TEMPLATE = '''
     <title>Pukkelpop Monitor - Stats</title>
         
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    
+
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
         table { width: 100%; border-collapse: collapse; margin: 20px 0; }
@@ -238,14 +238,14 @@ LOGIN_TEMPLATE = '''
     <meta property="og:url" content="https://pkpchecker.eu/">
     <meta property="og:title" content="Pukkelpop Ticket Monitor">
     <meta property="og:description" content="Get instant email notifications when Pukkelpop tickets become available for any day or camping option.">
-    <meta property="og:image" content="https://pkpchecker.eu/static/pukkelpop-social.jpg">
+    <meta property="og:image" content="https://pkpchecker.eu/static/pukkelpop-social.png">
     <meta property="og:site_name" content="Pukkelpop Ticket Monitor">
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:title" content="Pukkelpop Ticket Monitor">
     <meta property="twitter:description" content="Get instant email notifications when Pukkelpop tickets become available.">
-    <meta property="twitter:image" content="https://pkpchecker.eu/static/pukkelpop-social.jpg">
+    <meta property="twitter:image" content="https://pkpchecker.eu/static/pukkelpop-social.png">
     
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     
