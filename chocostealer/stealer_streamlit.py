@@ -156,7 +156,7 @@ def main():
         if st.button("🔄 Refresh Now", type="primary"):
             st.cache_data.clear()
             st.rerun()
-    st.
+            
     with col3:
         if st.button("Select All"):
             for day_key in days.keys():
