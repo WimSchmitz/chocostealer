@@ -5,6 +5,29 @@ INDEX_TEMPLATE = '''
 <html>
 <head>
     <title>Pukkelpop Ticket Monitor</title>
+
+    <!-- SEO Meta Tags -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Get instant email notifications when Pukkelpop tickets become available. Monitor Friday, Saturday, Sunday, and Combi passes automatically.">
+    <meta name="keywords" content="Pukkelpop, tickets, monitor, notifications, festival, Belgium, music">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://pkpchecker.eu/">
+    <meta property="og:title" content="Pukkelpop Ticket Monitor">
+    <meta property="og:description" content="Get instant email notifications when Pukkelpop tickets become available for any day or camping option.">
+    <meta property="og:image" content="https://pkpchecker.eu/static/pukkelpop-social.jpg">
+    <meta property="og:site_name" content="Pukkelpop Ticket Monitor">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="Pukkelpop Ticket Monitor">
+    <meta property="twitter:description" content="Get instant email notifications when Pukkelpop tickets become available.">
+    <meta property="twitter:image" content="https://pkpchecker.eu/static/pukkelpop-social.jpg">
+    
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
         .form-group { margin: 15px 0; }
