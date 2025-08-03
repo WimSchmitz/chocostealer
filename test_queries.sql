@@ -7,3 +7,23 @@ GROUP BY subscribers.id, subscribers.email;
 SELECT day, camping, COUNT(*) as count, MIN(price) as lowest_price, MAX(url) as url
 FROM tickets
 GROUP BY day, camping;
+
+
+-- Lowest price per day and camping with URL
+SELECT 
+    day,
+    camping,
+    COUNT(*) as ticket_count,
+    MIN(price) as lowest_price,
+    (SELECT url 
+     FROM tickets t2 
+     WHERE t2.day = t1.day 
+       AND t2.camping = t1.camping 
+       AND t2.price = (SELECT MIN(price) 
+                       FROM tickets t3 
+                       WHERE t3.day = t1.day 
+                         AND t3.camping = t1.camping)
+     LIMIT 1) as lowest_price_url
+FROM tickets t1
+GROUP BY day, camping
+ORDER BY day, camping;

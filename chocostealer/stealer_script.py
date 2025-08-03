@@ -224,7 +224,7 @@ def monitor_tickets():
                         # Send notifications for each ticket & add to database
                         for link_element in link_elements:
                             price = link_element.get_text(strip=True)
-                            link_url = link_element.get("href")
+                            link_url = config.URL_TEMPLATE.format(day=day, camping=camping)
                             ticket_id = link_url.split("/")[-3]
                             tickets.append((ticket_id, day, camping, price, link_url))
                             notify_contacts(ticket_id, url, day, camping, price)
