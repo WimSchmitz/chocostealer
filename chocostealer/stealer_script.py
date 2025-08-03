@@ -178,7 +178,6 @@ def monitor_tickets():
 
     while True:
         try:
-            reset_tickets()  # Clear previous tickets
             logger.info(f"Checking tickets at {datetime.now()}")
 
             for day in config.DAYS.keys():
@@ -212,7 +211,8 @@ def monitor_tickets():
                             if price_match:
                                 prices.append((float(price_match.group(1)), price_text))
 
-                        # Send notifications for each ticket
+                        reset_tickets()  # Clear previous tickets
+                        # Send notifications for each ticket & add to database
                         for link_element in link_elements:
                             price = link_element.get_text(strip=True)
                             link_url = link_element.get("href")
