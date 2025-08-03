@@ -201,7 +201,7 @@ def monitor_tickets():
     while True:
         try:
             logger.info(f"Checking tickets at {datetime.now()}")
-
+            tickets = []
             for day in config.DAYS.keys():
                 for camping in config.CAMPINGS.keys():
                     url = config.URL_TEMPLATE.format(day=day, camping=camping)
@@ -219,8 +219,6 @@ def monitor_tickets():
 
                     ticket_count = len(link_elements)
                     logger.info(f"Found {ticket_count} links for {day} + {camping}")
-
-                    tickets = []
 
                     if ticket_count > 0:
                         # Send notifications for each ticket & add to database
