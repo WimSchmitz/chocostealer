@@ -1,6 +1,5 @@
-
 # HTML Templates
-INDEX_TEMPLATE = '''
+INDEX_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -92,6 +91,11 @@ INDEX_TEMPLATE = '''
                 {% endfor %}
             </tbody>
         </table>
+        {% if last_refreshed %}
+            <p style="font-size: 0.9em; color: #888; margin-bottom: 10px;">
+                Last refreshed: {{ last_refreshed }}
+            </p>
+        {% endif %}
         {% else %}
         <p class="no-tickets">No tickets currently available. Subscribe below to get notified when they become available!</p>
         {% endif %}
@@ -146,9 +150,9 @@ INDEX_TEMPLATE = '''
     </div>
 </body>
 </html>
-'''
+"""
 
-STATS_TEMPLATE = '''
+STATS_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -219,9 +223,9 @@ STATS_TEMPLATE = '''
     </div>
 </body>
 </html>
-'''
+"""
 
-LOGIN_TEMPLATE = '''
+LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -336,4 +340,4 @@ LOGIN_TEMPLATE = '''
     </div>
 </body>
 </html>
-'''
+"""

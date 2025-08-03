@@ -4,6 +4,7 @@ Run with: python stealer_app.py
 """
 
 import sqlite3
+from datetime import datetime, timezone
 from flask import (
     Flask,
     render_template_string,
@@ -102,6 +103,30 @@ def get_current_tickets_overview():
     conn.close()
     return results
 
+def get_last_refreshed():
+    """Get the last time tickets were refreshed."""
+    conn = sqlite3.connect(config.DATABASE_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT MAX(created_at) FROM tickets")
+    result = cursor.fetchone()[0]
+    conn.close()
+
+    if result:
+        last_utc = datetime.fromisoformat(result).replace(tzinfo=timezone.utc)
+        now_utc = datetime.now(timezone.utc)
+        delta = now_utc - last_utc
+
+        seconds = int(delta.total_seconds())
+        if seconds < 60:
+            return f"{seconds} seconds ago"
+        elif seconds < 3600:
+            minutes = seconds // 60
+            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+        else:
+            hours = seconds // 3600
+            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    else:
+        return None
 
 # Password protection decorator
 def require_password(f):
@@ -142,11 +167,13 @@ def static_files(filename):
 @require_password
 def index():
     current_tickets_overview = get_current_tickets_overview()
+    last_refreshed = get_last_refreshed()
     return render_template_string(
         templates.INDEX_TEMPLATE,
         days=config.DAYS,
         campings=config.CAMPINGS,
         current_tickets_overview=current_tickets_overview,
+        last_refreshed=last_refreshed
     )
 
 
