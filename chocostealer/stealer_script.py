@@ -221,7 +221,7 @@ def monitor_tickets():
                             add_ticket(ticket_id, day, camping, price, url)
                             notify_contacts(ticket_id, url, day, camping, price)
 
-            time.sleep(30)  # Check every 30 seconds
+            time.sleep(10)  # Check every 10 seconds
 
         except Exception as e:
             print(f"Monitoring error: {e}")
