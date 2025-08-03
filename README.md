@@ -1,4 +1,5 @@
 # 🎪 Chocostealer - Pukkelpop Ticket Monitor
+*Originally inspired by [@lvanroye](https://github.com/lvanroye)'s nifty little website polling system!*
 
 A comprehensive ticket monitoring system for Pukkelpop festival that automatically checks for ticket availability and sends email notifications when tickets become available.
 
