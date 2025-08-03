@@ -72,18 +72,32 @@ def init_db():
     conn.close()
 
 
-def get_subscribers_to_notify(day, camping, ticket_id):
+def get_notifications_to_send():
     conn = sqlite3.connect(config.DATABASE_NAME)
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        SELECT subscribers.id, subscribers.email FROM subscribers
-        LEFT JOIN notifications n ON subscribers.id = n.subscriber_id AND n.ticket_id = ?
-        WHERE subscribers.day = ? AND subscribers.camping = ? AND subscribers.active = 1 AND n.ticket_id IS NULL
-        GROUP BY subscribers.id, subscribers.email
-    """,
-        (ticket_id, day, camping),
+        SELECT 
+            t.ticket_id,
+            t.day,
+            t.camping,
+            t.price,
+            t.url,
+            s.id,
+            s.email
+        FROM 
+            tickets t
+        JOIN 
+            subscribers s 
+            ON t.day = s.day AND t.camping = s.camping
+        LEFT JOIN 
+            notifications n 
+            ON n.ticket_id = t.ticket_id AND n.subscriber_id = s.id
+        WHERE 
+            n.id IS NULL
+            AND s.active = 1;
+    """
     )
 
     results = cursor.fetchall()
@@ -151,47 +165,45 @@ def log_notification(ticket_id, subscriber_id):
     conn.close()
 
 
-# Email notification function
-def notify_contacts(ticket_id, url, day, camping, price):
-    logger.debug(f"Sending notifications for ID: {ticket_id}")
-
-    subscribers = get_subscribers_to_notify(day, camping, ticket_id)
-    if not subscribers:
-        logger.debug(f"No subscribers to notify for {day} + {camping}")
-        return
-
-    try:
+def notify_subscribers():
+    notifications = get_notifications_to_send()
+    if notifications:
+        logger.info(f"Subscribers to notify: {len(notifications)}")
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(config.EMAIL_ADDRESS, config.EMAIL_PASSWORD)
-
             for (
+                ticket_id,
+                day,
+                camping,
+                price,
+                url,
                 subscriber_id,
-                email,
-            ) in subscribers:
-                msg = EmailMessage()
-                msg["Subject"] = config.MAIL_SUBJECT_TEMPLATE.format(
-                    day=config.DAYS[day], camping=config.CAMPINGS[camping], price=price
-                )
-                msg["From"] = config.EMAIL_ADDRESS
-                msg["To"] = email
-                msg.set_content(
-                    config.MAIL_BODY_TEMPLATE.format(
+                subscriber_email,
+            ) in notifications:
+                try:
+                    msg = EmailMessage()
+                    msg["Subject"] = config.MAIL_SUBJECT_TEMPLATE.format(
                         day=config.DAYS[day],
                         camping=config.CAMPINGS[camping],
                         price=price,
-                        url=url,
                     )
-                )
+                    msg["From"] = config.EMAIL_ADDRESS
+                    msg["To"] = subscriber_email
+                    msg.set_content(
+                        config.MAIL_BODY_TEMPLATE.format(
+                            day=config.DAYS[day],
+                            camping=config.CAMPINGS[camping],
+                            price=price,
+                            url=url,
+                        )
+                    )
+                    smtp.send_message(msg)
+                    logger.info(f"Email sent to {subscriber_email}")
+                    log_notification(ticket_id, subscriber_id)
 
-                smtp.send_message(msg)
-                logger.debug(f"Email sent to {email}")
-
-        log_notification(ticket_id, subscriber_id)
-        return True
-
-    except Exception as e:
-        print(f"Email error: {e}")
-        return False
+                except Exception as e:
+                    print(f"Email error: {e}")
+                    return False
 
 
 # Background monitoring function
@@ -225,12 +237,12 @@ def monitor_tickets():
                         for link_element in link_elements:
                             price = link_element.get_text(strip=True)
                             link_url = config.URL_TEMPLATE.format(day=day, camping=camping)
-                            ticket_id = link_url.split("/")[-3]
+                            ticket_id = link_element.get("href").split("/")[-3]
                             tickets.append((ticket_id, day, camping, price, link_url))
-                            notify_contacts(ticket_id, url, day, camping, price)
 
             reset_tickets()  # Clear tickets database
-            add_tickets(tickets)
+            add_tickets(tickets) # Add new tickets to the database
+            notify_subscribers() # Notify subscribers of new tickets
             time.sleep(10)  # Check every 10 seconds
 
         except Exception as e:

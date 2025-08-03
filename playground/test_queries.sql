@@ -27,3 +27,9 @@ SELECT
 FROM tickets t1
 GROUP BY day, camping
 ORDER BY day, camping;
+
+--- Subscribers to notify
+SELECT subscribers.id, subscribers.email FROM subscribers
+LEFT JOIN notifications n ON subscribers.id = n.subscriber_id AND n.ticket_id = 
+WHERE subscribers.day = ? AND subscribers.camping = ? AND subscribers.active = 1 AND n.ticket_id IS NULL
+GROUP BY subscribers.id, subscribers.email
