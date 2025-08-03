@@ -115,6 +115,28 @@ def add_ticket(ticket_id, day, camping, price, url):
     conn.close()
 
 
+def add_tickets(tickets):
+    """
+    Inserts multiple tickets into the database.
+
+    :param tickets: List of tuples, each tuple containing
+                    (ticket_id, day, camping, price, url)
+    """
+    conn = sqlite3.connect(config.DATABASE_NAME)
+    cursor = conn.cursor()
+
+    cursor.executemany(
+        """
+        INSERT INTO tickets (ticket_id, day, camping, price, url) 
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        tickets,
+    )
+
+    conn.commit()
+    conn.close()
+
+
 def log_notification(ticket_id, subscriber_id):
     conn = sqlite3.connect(config.DATABASE_NAME)
     cursor = conn.cursor()
@@ -196,38 +218,29 @@ def monitor_tickets():
                     )
 
                     ticket_count = len(link_elements)
-
                     logger.info(f"Found {ticket_count} links for {day} + {camping}")
 
-                    if ticket_count > 0:
-                        # Extract all prices and find the lowest
-                        prices = []
-                        for link_element in link_elements:
-                            price_text = link_element.get_text(strip=True)
-                            # Try to extract numeric value from price for comparison
-                            price_match = re.search(
-                                r"€?\s*(\d+(?:\.\d{2})?)", price_text
-                            )
-                            if price_match:
-                                prices.append((float(price_match.group(1)), price_text))
+                    tickets = []
 
-                        reset_tickets()  # Clear previous tickets
+                    if ticket_count > 0:
                         # Send notifications for each ticket & add to database
                         for link_element in link_elements:
                             price = link_element.get_text(strip=True)
                             link_url = link_element.get("href")
                             ticket_id = link_url.split("/")[-3]
-
-                            add_ticket(ticket_id, day, camping, price, url)
+                            tickets.append((ticket_id, day, camping, price, link_url))
                             notify_contacts(ticket_id, url, day, camping, price)
 
+            reset_tickets()  # Clear tickets database
+            add_tickets(tickets)
             time.sleep(10)  # Check every 10 seconds
 
         except Exception as e:
             print(f"Monitoring error: {e}")
             time.sleep(60)
-            
-if __name__ == '__main__':
+
+
+if __name__ == "__main__":
     print("Starting ticket monitoring service...")
     init_db()  # Initialize database
     monitor_tickets()  # This will run the monitoring loop
