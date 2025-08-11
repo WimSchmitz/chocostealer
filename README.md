@@ -1,4 +1,4 @@
-# 🎪 Chocostealer - Pukkelpop Ticket Monitor
+# 🎪 Pukkelpop Ticket Monitor
 *Originally inspired by [@lvanroye](https://github.com/lvanroye)'s nifty little website polling system!*
 
 A comprehensive ticket monitoring system for Pukkelpop festival that automatically checks for ticket availability and sends email notifications when tickets become available.
@@ -73,7 +73,7 @@ poetry shell
 Start the background script to start checking the website:
 
 ```bash
-python chocostealer/stealer_flask.py
+python chocostealer/stealer_script.py
 ```
 
 And then start the web server with subscriber management:
