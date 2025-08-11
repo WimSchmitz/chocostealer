@@ -53,10 +53,10 @@ Creating your own virtual environment and installing with `pip install -r requir
 3. **Configure environment variables:**
 Create a `.env` file in the project root:
 ```env
-EMAIL_USER=your-gmail@gmail.com
-EMAIL_PASSWORD=your-email-password
-SECRET_KEY=your-secret-key-here # This Secret key used internally by Flask, to protect user session data.
-APP_PASSWORD=your-app" # This is the front end that users need to enter to open the website
+EMAIL_USER="your-gmail@gmail.com"
+EMAIL_PASSWORD="your-email-password"
+SECRET_KEY="your-secret-key-here" # This Secret key is used internally by Flask, to protect user session data.
+APP_PASSWORD="your-app" # This is the front end password that users need to enter to open the website
 ```
 
 > **Note**: Use Gmail App Passwords, not your regular Gmail password. [Learn how to create an App Password](https://support.google.com/accounts/answer/185833).
@@ -68,7 +68,7 @@ poetry shell
 
 ## 🎯 Usage
 
-### Option 1: Flask Web Application (Recommended)
+### Option 1: Flask Web Application + Background Script (Recommended)
 
 Start the background script to start checking the website:
 
@@ -94,7 +94,7 @@ Then visit:
 - Automatic background monitoring
 - SQLite database for data persistence
 
-### Option 2: Streamlit Dashboard
+### Option 2: Streamlit Dashboard (Deprecated)
 
 Launch the interactive monitoring dashboard:
 
@@ -107,19 +107,6 @@ streamlit run chocostealer/stealer_streamlit.py
 - Interactive filtering by day and camping
 - Visual ticket overview
 - No email notifications (view-only)
-
-### Option 3: Command Line Script
-
-Run the basic monitoring script:
-
-```bash
-python chocostealer/stealer_script.py
-```
-
-**Features:**
-- Simple command-line monitoring
-- Hardcoded contact list (edit the script to customize)
-- Immediate email notifications
 
 ## 📊 Database Schema
 
