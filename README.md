@@ -41,16 +41,22 @@ cd chocostealer
 ```
 
 2. **Install dependencies:**
+
+If you use poetry, you can just execute the following command:
+
 ```bash
 poetry install
 ```
+
+Creating your own virtual environment and installing with `pip install -r requirements.txt` is also supported.
 
 3. **Configure environment variables:**
 Create a `.env` file in the project root:
 ```env
 EMAIL_USER=your-gmail@gmail.com
-EMAIL_PASSWORD=your-app-password
-SECRET_KEY=your-secret-key-here
+EMAIL_PASSWORD=your-email-password
+SECRET_KEY=your-secret-key-here # This Secret key used internally by Flask, to protect user session data.
+APP_PASSWORD=your-app" # This is the front end that users need to enter to open the website
 ```
 
 > **Note**: Use Gmail App Passwords, not your regular Gmail password. [Learn how to create an App Password](https://support.google.com/accounts/answer/185833).
@@ -64,17 +70,25 @@ poetry shell
 
 ### Option 1: Flask Web Application (Recommended)
 
-Start the web server with subscriber management:
+Start the background script to start checking the website:
 
 ```bash
-python chocostealer/stealer_app.py
+python chocostealer/stealer_flask.py
+```
+
+And then start the web server with subscriber management:
+
+```bash
+python chocostealer/stealer_flask.py
 ```
 
 Then visit:
+
 - **Main Interface**: http://localhost:5000
 - **Statistics**: http://localhost:5000/stats
 
 **Features:**
+
 - Subscribe/unsubscribe via web interface
 - View subscriber statistics
 - Automatic background monitoring
@@ -166,7 +180,7 @@ chocostealer/
 - Don't modify the delay intervals without good reason
 
 ### Email Delivery
-- Uses Gmail SMTP with SSL encryption
+- Uses Gmail SMTP with SSL encryption, but supports other email addresses
 - Requires Gmail App Passwords (not regular passwords)
 - Check spam folder if emails aren't received
 
